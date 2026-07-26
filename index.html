@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Грузоперевозки — дашборд</title>
+
+<!-- iOS: превращает сайт в подобие приложения при "Добавить на экран Домой" -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Грузоперевозки">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f172a">
+
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --card2: #273449; --text: #e2e8f0; --muted: #94a3b8;
+    --accent: #22c55e; --danger: #ef4444; --warn: #f59e0b; --border: #334155;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; padding:0; height:100%; background:var(--bg); color:var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  #app { max-width: 480px; margin: 0 auto; min-height: 100vh; display:flex; flex-direction:column;
+    padding-bottom: env(safe-area-inset-bottom); }
+
+  /* ---- логин ---- */
+  #login { flex:1; display:flex; flex-direction:column; justify-content:center; padding: 24px; gap: 12px; }
+  #login h1 { font-size: 20px; text-align:center; margin-bottom: 8px; }
+  #login input { background:var(--card); border:1px solid var(--border); color:var(--text);
+    padding: 14px; border-radius: 12px; font-size: 16px; width:100%; }
+  #login button { background:var(--accent); color:#04220f; border:none; padding:14px;
+    border-radius:12px; font-size:16px; font-weight:600; }
+  #loginError { color:var(--danger); font-size:14px; text-align:center; min-height:18px; }
+  #apiUrlWrap { display:none; }
+  #apiUrlWrap.show { display:block; }
+  #apiUrlWrap small { color:var(--muted); }
+
+  /* ---- каркас ---- */
+  header.top { padding: 14px 16px; display:flex; justify-content:space-between; align-items:center;
+    border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:5; }
+  header.top .who { font-size:13px; color:var(--muted); }
+  header.top button { background:none; border:none; color:var(--muted); font-size:13px; }
+  main { flex:1; overflow-y:auto; padding: 12px 12px 90px; }
+
+  nav.tabs { position:fixed; bottom:0; left:0; right:0; max-width:480px; margin:0 auto;
+    display:flex; background:var(--card); border-top:1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom); }
+  nav.tabs button { flex:1; background:none; border:none; color:var(--muted); padding:12px 4px 10px;
+    font-size:11px; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  nav.tabs button span.ic { font-size:19px; }
+  nav.tabs button.active { color: var(--accent); }
+
+  .card { background:var(--card); border-radius:14px; padding:14px 16px; margin-bottom:10px; }
+  .kpi-grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px; }
+  .kpi { background:var(--card); border-radius:14px; padding:14px; }
+  .kpi .label { font-size:12px; color:var(--muted); }
+  .kpi .value { font-size:20px; font-weight:700; margin-top:4px; }
+  .kpi .value.pos { color: var(--accent); }
+  .kpi .value.neg { color: var(--danger); }
+
+  .alarm { display:flex; justify-content:space-between; align-items:center; padding:10px 0;
+    border-bottom:1px solid var(--border); font-size:14px; }
+  .alarm:last-child { border-bottom:none; }
+  .alarm .n { background:var(--danger); color:#fff; border-radius:999px; min-width:22px; height:22px;
+    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; padding:0 6px; }
+  .empty { color:var(--muted); text-align:center; padding:24px 8px; font-size:14px; }
+
+  h2.section { font-size:14px; color:var(--muted); margin: 4px 4px 10px; text-transform:uppercase; letter-spacing:.03em; }
+
+  .row-item { background:var(--card); border-radius:12px; padding:12px 14px; margin-bottom:8px; }
+  .row-item .rt { display:flex; justify-content:space-between; font-size:13px; color:var(--muted); margin-bottom:6px; }
+  .row-item .rm { font-size:15px; }
+  .row-item .fields { display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px; }
+  .row-item .fields label { font-size:11px; color:var(--muted); display:block; margin-bottom:3px; }
+  .row-item .fields input, .row-item .fields select { width:100%; background:var(--card2); border:1px solid var(--border);
+    color:var(--text); padding:9px; border-radius:8px; font-size:14px; }
+  .row-item .save { margin-top:10px; width:100%; background:var(--accent); color:#04220f; border:none;
+    padding:10px; border-radius:8px; font-weight:600; font-size:13px; }
+  .row-item .save.pending { background: var(--warn); }
+  .row-item .save.saved { background: var(--card2); color: var(--muted); }
+
+  .fab { position:fixed; bottom:80px; right:calc(50% - 240px + 16px); background:var(--accent);
+    color:#04220f; border:none; width:52px; height:52px; border-radius:50%; font-size:26px;
+    box-shadow:0 4px 14px rgba(0,0,0,.4); z-index:6; }
+  @media (max-width: 512px) { .fab { right:16px; } }
+
+  .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:flex-end; z-index:20; }
+  .modal-bg.show { display:flex; }
+  .modal { background:var(--card); width:100%; max-width:480px; margin:0 auto; border-radius:18px 18px 0 0;
+    padding:18px 16px calc(18px + env(safe-area-inset-bottom)); max-height:85vh; overflow-y:auto; }
+  .modal h3 { margin-top:0; }
+  .modal label { font-size:12px; color:var(--muted); display:block; margin:10px 0 4px; }
+  .modal input, .modal select { width:100%; background:var(--card2); border:1px solid var(--border);
+    color:var(--text); padding:11px; border-radius:8px; font-size:15px; }
+  .modal .btns { display:flex; gap:10px; margin-top:16px; }
+  .modal .btns button { flex:1; padding:12px; border-radius:10px; border:none; font-weight:600; }
+  .modal .btns .cancel { background:var(--card2); color:var(--text); }
+  .modal .btns .submit { background:var(--accent); color:#04220f; }
+
+  .toast { position:fixed; top:14px; left:50%; transform:translateX(-50%); background:#0f2e1c;
+    color:var(--accent); border:1px solid var(--accent); padding:10px 18px; border-radius:999px;
+    font-size:13px; z-index:30; opacity:0; transition:opacity .25s; pointer-events:none; }
+  .toast.show { opacity:1; }
+  .toast.err { background:#2e0f0f; color:var(--danger); border-color:var(--danger); }
+
+  .spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,.3);
+    border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .center-load { text-align:center; padding:40px; color:var(--muted); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══════ ЭКРАН ВХОДА ═══════ -->
+  <div id="login">
+    <h1>🚛 Грузоперевозки</h1>
+    <input id="loginUser" type="text" placeholder="Логин" autocomplete="username">
+    <input id="loginPass" type="password" placeholder="Пароль" autocomplete="current-password">
+    <button onclick="doLogin()">Войти</button>
+    <div id="loginError"></div>
+    <div id="apiUrlWrap">
+      <small>Адрес API (URL Apps Script Web App):</small>
+      <input id="apiUrlInput" type="text" placeholder="https://script.google.com/macros/s/.../exec">
+    </div>
+  </div>
+
+  <!-- ═══════ ОСНОВНОЕ ПРИЛОЖЕНИЕ (скрыто до входа) ═══════ -->
+  <div id="mainApp" style="display:none; flex-direction:column; flex:1;">
+    <header class="top">
+      <div class="who">👤 <span id="whoName"></span> · <span id="whoRole"></span></div>
+      <button onclick="logout()">Выйти</button>
+    </header>
+
+    <main id="main"></main>
+
+    <button class="fab" id="fab" style="display:none" onclick="openAddModal()">+</button>
+
+    <nav class="tabs" id="tabs"></nav>
+  </div>
+
+</div>
+
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this) closeModal()">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════ НАСТРОЙКА ═══════════════════════
+   Впишите сюда URL вашего Apps Script Web App после публикации
+   (Расширения → Apps Script → Развернуть → Новое развёртывание → Веб-приложение → скопировать /exec ссылку).
+   Пока не вписан — при первом входе появится поле для ручного ввода, он сохранится в этом браузере. */
+let API_URL = "https://script.google.com/macros/s/AKfycbwtbSOXBGiBzrlb0sFSQ5mrMNYQ8hnMb_wCOanUQa1-c7UIWteaK_vZRzgHsyVvf0du/exec";
+/* ═══════════════════════════════════════════════════════════ */
+
+let TOKEN = null, ROLE = null, NAME = null;
+let СПРАВОЧНИКИ = null;
+let currentTab = null;
+
+const TABS = {
+  'Владелец':  [['dashboard','Сводка','📊'], ['Маршруты','Плечи','🧭'], ['Рейсы','Рейсы','🚚'], ['Выдано','Выдано','💵'], ['Расходы','Расходы','🧾']],
+  'Диспетчер': [['dashboard','Сводка','📊'], ['Маршруты','Плечи','🧭']],
+  'Бухгалтер': [['dashboard','Сводка','📊'], ['Рейсы','Рейсы','🚚'], ['Заправки','Заправки','⛽'], ['Выдано','Выдано','💵'], ['Расходы','Расходы','🧾']]
+};
+
+const FIELD_META = {
+  'Маршруты': { title: (р)=>р[0]||'—', sub: (р)=>р[1]||'', add: true,
+    fields: [
+      {i:0, label:'№ рейса', type:'select-trip'},
+      {i:1, label:'Плечо (откуда — куда)', type:'text'},
+      {i:2, label:'Груз / комментарий', type:'text'},
+      {i:3, label:'Ставка', type:'number'},
+      {i:4, label:'Валюта', type:'select', options:['KZT','RUB','USD','EUR','CNY']}
+    ] },
+  'Рейсы': { title:(р)=>р[0]||'—', sub:(р)=>(р[1]||'')+' · '+(р[2]||''), add:false,
+    fields: [
+      {i:24, label:'Остаток в баке по приезду, л (GPS)', type:'number'},
+      {i:25, label:'Моточасы рефа: счётчик по приезду', type:'number'}
+    ] },
+  'Выдано': { title:(р)=>р[0]||'—', sub:(р)=>(р[2]||'')+' · '+(р[1]||''), add:false,
+    fields: [
+      {i:4, label:'Выдано KZT', type:'number'},
+      {i:9, label:'Выдано RUB', type:'number'},
+      {i:14, label:'Выдано CNY', type:'number'},
+      {i:19, label:'Выдано EUR', type:'number'}
+    ] },
+  'Расходы': { title:(р)=>р[3]||р[2]||'—', sub:(р)=>(р[1]||'')+' · '+(р[0]?fmtDate(р[0]):''), add:true,
+    fields: [
+      {i:0, label:'Дата', type:'date'},
+      {i:1, label:'Госномер', type:'select-car'},
+      {i:2, label:'Категория', type:'text'},
+      {i:3, label:'Описание', type:'text'},
+      {i:4, label:'Сумма', type:'number'},
+      {i:5, label:'Валюта', type:'select', options:['KZT','RUB','USD','EUR','CNY']},
+      {i:9, label:'Кто оплатил', type:'text'}
+    ] },
+  'Заправки': { title:(р)=>р[1]||'—', sub:(р)=>(р[0]?fmtDate(р[0]):''), add:false, fields: [] }
+};
+
+function fmtDate(v){ if(!v) return ''; try{ const d=new Date(v); return d.toLocaleDateString('ru-RU'); }catch(e){ return v; } }
+function fmtNum(v){ if(v===null||v===undefined||v==='') return '—'; return Number(v).toLocaleString('ru-RU',{maximumFractionDigits:0}); }
+
+function toast(msg, isErr){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show' + (isErr?' err':'');
+  setTimeout(()=> t.className='toast', 2200);
+}
+
+async function api(action, extra){
+  extra = extra || {};
+  const body = Object.assign({ action, token: TOKEN }, extra);
+  let res;
+  try {
+    res = await fetch(API_URL, { method:'POST', body: JSON.stringify(body) });
+  } catch(e) {
+    throw new Error('Нет связи с таблицей. Проверьте интернет.');
+  }
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Ошибка');
+  return data;
+}
+
+/* ---------- вход/выход ---------- */
+function savedApiUrl(){ return localStorage.getItem('api_url'); }
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = savedApiUrl();
+  if (saved) API_URL = saved;
+  if (!API_URL || API_URL.indexOf('ВСТАВЬТЕ') === 0) {
+    document.getElementById('apiUrlWrap').className = 'show';
+  }
+  const t = localStorage.getItem('token'), r = localStorage.getItem('role'), n = localStorage.getItem('name');
+  if (t && r) { TOKEN = t; ROLE = r; NAME = n; enterApp(); }
+});
+
+async function doLogin(){
+  const manualUrl = document.getElementById('apiUrlInput').value.trim();
+  if (manualUrl) { API_URL = manualUrl; localStorage.setItem('api_url', manualUrl); }
+  const login = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if (!login || !pass) { errEl.textContent = 'Введите логин и пароль'; return; }
+  try {
+    const data = await api('login', { login, password: pass });
+    TOKEN = data.token; ROLE = data.role; NAME = data.name;
+    localStorage.setItem('token', TOKEN); localStorage.setItem('role', ROLE); localStorage.setItem('name', NAME);
+    enterApp();
+  } catch(e) { errEl.textContent = e.message; }
+}
+
+function logout(){
+  localStorage.removeItem('token'); localStorage.removeItem('role'); localStorage.removeItem('name');
+  TOKEN = null; ROLE = null; NAME = null;
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('login').style.display = 'flex';
+}
+
+function enterApp(){
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'flex';
+  document.getElementById('whoName').textContent = NAME || '';
+  document.getElementById('whoRole').textContent = ROLE || '';
+  buildTabs();
+  const tabs = TABS[ROLE] || TABS['Диспетчер'];
+  openTab(tabs[0][0]);
+}
+
+function buildTabs(){
+  const nav = document.getElementById('tabs');
+  nav.innerHTML = '';
+  const tabs = TABS[ROLE] || [];
+  tabs.forEach(([key, label, ic]) => {
+    const b = document.createElement('button');
+    b.innerHTML = '<span class="ic">'+ic+'</span>'+label;
+    b.onclick = () => openTab(key);
+    b.dataset.key = key;
+    nav.appendChild(b);
+  });
+}
+
+/* ---------- навигация по вкладкам ---------- */
+async function openTab(key){
+  currentTab = key;
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.key===key));
+  const main = document.getElementById('main');
+  main.innerHTML = '<div class="center-load"><span class="spinner"></span></div>';
+  document.getElementById('fab').style.display = 'none';
+
+  try {
+    if (key === 'dashboard') { await renderDashboard(); }
+    else { await renderSheet(key); }
+  } catch(e) {
+    main.innerHTML = '<div class="empty">Ошибка: '+e.message+'</div>';
+  }
+}
+
+/* ---------- сводка ---------- */
+async function renderDashboard(){
+  const d = await api('dashboard');
+  const main = document.getElementById('main');
+  const k = d.kpi;
+  let html = '<h2 class="section">За 7 дней / 30 дней</h2><div class="kpi-grid">';
+  html += kpiCard('Доход', k.доход7, k.доход30);
+  html += kpiCard('Расход (30д)', null, k.расход30);
+  html += kpiCard('Прибыль', k.прибыль7, k.прибыль30, true);
+  html += kpiCard('Маржа', pct(k.маржа7), pct(k.маржа30));
+  html += '</div>';
+
+  html += '<h2 class="section">Тревоги</h2><div class="card">';
+  if (!d.тревоги.length) {
+    html += '<div class="empty">✅ Всё в порядке — открывать другие листы не нужно.</div>';
+  } else {
+    d.тревоги.forEach(t => {
+      html += '<div class="alarm"><span>'+t.текст+'</span><span class="n">'+t.число+'</span></div>';
+    });
+  }
+  html += '</div>';
+  main.innerHTML = html;
+}
+function pct(v){ return v===null||v===undefined||v==='' ? null : Math.round(v*1000)/10; }
+function kpiCard(label, v7, v30, signed){
+  const cls = signed ? (v30>=0?'pos':'neg') : '';
+  const shown = (v7!==null && v7!==undefined) ? fmtNum(v7)+' / ' : '';
+  return '<div class="kpi"><div class="label">'+label+'</div><div class="value '+cls+'">'+shown+fmtNum(v30)+'</div></div>';
+}
+
+/* ---------- списки строк ---------- */
+let currentRows = [], currentPermWrite = false;
+
+async function renderSheet(sheet){
+  const d = await api('list', { sheet });
+  currentRows = d.строки; currentPermWrite = d.можноПисать;
+  const main = document.getElementById('main');
+  const meta = FIELD_META[sheet];
+
+  if (currentPermWrite && meta.add) document.getElementById('fab').style.display = 'flex';
+
+  if (!currentRows.length) { main.innerHTML = '<div class="empty">Пока нет записей.</div>'; return; }
+
+  let html = '';
+  currentRows.forEach((r, idx) => {
+    const р = r.значения;
+    html += '<div class="row-item" data-idx="'+idx+'">';
+    html += '<div class="rt"><span>'+ (meta.title(р)) +'</span><span>'+ (meta.sub(р)) +'</span></div>';
+    if (currentPermWrite && meta.fields.length) {
+      html += '<div class="fields">';
+      meta.fields.forEach(f => {
+        html += fieldHtml(sheet, idx, f, р[f.i]);
+      });
+      html += '</div>';
+      html += '<button class="save" onclick="saveRow(\''+sheet+'\','+idx+',this)">Сохранить</button>';
+    } else {
+      // только чтение: показать значения полей текстом
+      html += '<div class="fields">';
+      meta.fields.forEach(f => {
+        html += '<div><label>'+f.label+'</label><div style="padding:9px 0;">'+ (р[f.i]!==undefined && р[f.i]!=='' ? р[f.i] : '—') +'</div></div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  main.innerHTML = html;
+
+  if (meta.fields.some(f => f.type==='select-trip' || f.type==='select-car')) {
+    if (!СПРАВОЧНИКИ) { try { СПРАВОЧНИКИ = await api('справочники'); fillSelects(); } catch(e){} }
+    else fillSelects();
+  }
+}
+
+function fieldHtml(sheet, idx, f, val){
+  const id = 'f_'+sheet+'_'+idx+'_'+f.i;
+  if (f.type === 'select') {
+    let opts = f.options.map(o => '<option value="'+o+'" '+(o===val?'selected':'')+'>'+o+'</option>').join('');
+    return '<div><label>'+f.label+'</label><select id="'+id+'">'+opts+'</select></div>';
+  }
+  if (f.type === 'select-trip' || f.type === 'select-car') {
+    return '<div><label>'+f.label+'</label><select id="'+id+'" data-dyn="'+f.type+'"><option value="'+ (val||'') +'">'+ (val||'— выбрать —') +'</option></select></div>';
+  }
+  const inputType = f.type === 'date' ? 'date' : f.type;
+  let vv = val!==undefined && val!==null ? String(val).replace(/"/g,'') : '';
+  if (f.type === 'date' && vv) { const d = new Date(val); if(!isNaN(d)) vv = d.toISOString().slice(0,10); }
+  return '<div><label>'+f.label+'</label><input id="'+id+'" type="'+inputType+'" value="'+vv+'"></div>';
+}
+
+function fillSelects(){
+  document.querySelectorAll('select[data-dyn]').forEach(sel => {
+    const kind = sel.dataset.dyn;
+    const cur = sel.value;
+    let opts = '<option value="">— выбрать —</option>';
+    if (kind === 'select-trip') {
+      (СПРАВОЧНИКИ.рейсы || []).forEach(t => {
+        opts += '<option value="'+t.id+'" '+(t.id===cur?'selected':'')+'>'+t.id+' · '+t.водитель+' · '+t.госномер+'</option>';
+      });
+    } else {
+      (СПРАВОЧНИКИ.машины || []).forEach(m => {
+        opts += '<option value="'+m+'" '+(m===cur?'selected':'')+'>'+m+'</option>';
+      });
+    }
+    sel.innerHTML = opts;
+  });
+}
+
+async function saveRow(sheet, idx, btn){
+  const r = currentRows[idx];
+  const meta = FIELD_META[sheet];
+  const values = {};
+  meta.fields.forEach(f => {
+    const el = document.getElementById('f_'+sheet+'_'+idx+'_'+f.i);
+    if (!el) return;
+    let v = el.value;
+    if (f.type === 'number' && v !== '') v = Number(v);
+    values[f.i] = v;
+  });
+  btn.textContent = '...'; btn.className = 'save pending';
+  try {
+    await api('update', { sheet, row: r.row, values });
+    btn.textContent = 'Сохранено ✓'; btn.className = 'save saved';
+    setTimeout(() => { btn.textContent = 'Сохранить'; btn.className = 'save'; }, 1500);
+    toast('Сохранено');
+  } catch(e) {
+    btn.textContent = 'Сохранить'; btn.className = 'save';
+    toast(e.message, true);
+  }
+}
+
+/* ---------- добавление новой строки ---------- */
+function openAddModal(){
+  const sheet = currentTab;
+  const meta = FIELD_META[sheet];
+  if (!meta) return;
+  const modal = document.getElementById('modal');
+  let html = '<h3>Новая запись — '+sheet+'</h3>';
+  meta.fields.forEach(f => {
+    html += '<label>'+f.label+'</label>';
+    if (f.type === 'select') {
+      html += '<select id="new_'+f.i+'">' + f.options.map(o=>'<option value="'+o+'">'+o+'</option>').join('') + '</select>';
+    } else if (f.type === 'select-trip' || f.type === 'select-car') {
+      let opts = '<option value="">— выбрать —</option>';
+      if (f.type === 'select-trip') (СПРАВОЧНИКИ && СПРАВОЧНИКИ.рейсы || []).forEach(t => opts += '<option value="'+t.id+'">'+t.id+' · '+t.водитель+' · '+t.госномер+'</option>');
+      else (СПРАВОЧНИКИ && СПРАВОЧНИКИ.машины || []).forEach(m => opts += '<option value="'+m+'">'+m+'</option>');
+      html += '<select id="new_'+f.i+'">'+opts+'</select>';
+    } else {
+      const t = f.type === 'date' ? 'date' : f.type;
+      html += '<input id="new_'+f.i+'" type="'+t+'">';
+    }
+  });
+  html += '<div class="btns"><button class="cancel" onclick="closeModal()">Отмена</button><button class="submit" onclick="submitAdd()">Добавить</button></div>';
+  modal.innerHTML = html;
+  document.getElementById('modalBg').className = 'modal-bg show';
+}
+function closeModal(){ document.getElementById('modalBg').className = 'modal-bg'; }
+
+async function submitAdd(){
+  const sheet = currentTab;
+  const meta = FIELD_META[sheet];
+  const values = {};
+  meta.fields.forEach(f => {
+    const el = document.getElementById('new_'+f.i);
+    if (!el) return;
+    let v = el.value;
+    if (f.type === 'number' && v !== '') v = Number(v);
+    values[f.i] = v;
+  });
+  try {
+    await api('create', { sheet, values });
+    closeModal();
+    toast('Добавлено');
+    openTab(sheet);
+  } catch(e) { toast(e.message, true); }
+}
+</script>
+</body>
+</html>
